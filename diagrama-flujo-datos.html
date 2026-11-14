@@ -1,0 +1,867 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KanaimoWiki — Flujo de Datos</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Playfair+Display:wght@600;700&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Inter', sans-serif;
+    background: #1A1612;
+    color: #FDF8F3;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  .header {
+    text-align: center;
+    padding: 40px 20px 20px;
+  }
+
+  .header h1 {
+    font-family: 'Playfair Display', serif;
+    font-size: 2rem;
+    color: #D4A843;
+    margin-bottom: 8px;
+  }
+
+  .header p {
+    color: #A89480;
+    font-size: 0.9rem;
+    max-width: 600px;
+    margin: 0 auto;
+  }
+
+  /* Legend */
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 16px;
+    padding: 16px 20px 32px;
+    max-width: 800px;
+    margin: 0 auto;
+  }
+
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.75rem;
+    color: #A89480;
+  }
+
+  .legend-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+  }
+
+  /* Canvas */
+  .canvas {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 0 20px 60px;
+    position: relative;
+  }
+
+  /* Swim lanes */
+  .lane {
+    margin-bottom: 40px;
+    position: relative;
+  }
+
+  .lane-label {
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    color: #6B5744;
+    margin-bottom: 16px;
+    padding-left: 4px;
+  }
+
+  .lane-content {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    align-items: flex-start;
+  }
+
+  /* Nodes */
+  .node {
+    border-radius: 16px;
+    padding: 20px;
+    position: relative;
+    cursor: pointer;
+    transition: transform 0.2s, box-shadow 0.2s;
+    flex: 1;
+    min-width: 200px;
+    max-width: 320px;
+  }
+
+  .node:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+  }
+
+  .node.active {
+    outline: 2px solid #D4A843;
+    outline-offset: 2px;
+  }
+
+  .node-icon {
+    font-size: 1.5rem;
+    margin-bottom: 8px;
+  }
+
+  .node-title {
+    font-family: 'Playfair Display', serif;
+    font-size: 1.1rem;
+    margin-bottom: 6px;
+  }
+
+  .node-desc {
+    font-size: 0.8rem;
+    line-height: 1.5;
+    opacity: 0.8;
+  }
+
+  .node-tag {
+    display: inline-block;
+    font-size: 0.65rem;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 99px;
+    margin-top: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  /* Node types */
+  .node-source   { background: #3D2215; border: 1px solid #B8522E44; }
+  .node-source .node-title { color: #D4845E; }
+  .node-source .node-tag { background: #B8522E33; color: #D4845E; }
+
+  .node-process  { background: #1A2E22; border: 1px solid #2A6B4A44; }
+  .node-process .node-title { color: #3D9B6A; }
+  .node-process .node-tag { background: #2A6B4A33; color: #3D9B6A; }
+
+  .node-storage  { background: #2A2210; border: 1px solid #D4A84344; }
+  .node-storage .node-title { color: #D4A843; }
+  .node-storage .node-tag { background: #D4A84333; color: #D4A843; }
+
+  .node-output   { background: #1A2030; border: 1px solid #5B8AB544; }
+  .node-output .node-title { color: #7EAED4; }
+  .node-output .node-tag { background: #5B8AB533; color: #7EAED4; }
+
+  .node-ai       { background: #2A1A2E; border: 1px solid #9B6AAA44; }
+  .node-ai .node-title { color: #C49BD4; }
+  .node-ai .node-tag { background: #9B6AAA33; color: #C49BD4; }
+
+  .node-community { background: #1A2A2E; border: 1px solid #4A9BAA44; }
+  .node-community .node-title { color: #7ED4D4; }
+  .node-community .node-tag { background: #4A9BAA33; color: #7ED4D4; }
+
+  /* Arrows between lanes */
+  .arrow-section {
+    display: flex;
+    justify-content: center;
+    padding: 8px 0;
+    margin-bottom: 24px;
+  }
+
+  .arrow-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 24px;
+    justify-content: center;
+  }
+
+  .arrow {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .arrow-line {
+    width: 2px;
+    height: 28px;
+    position: relative;
+  }
+
+  .arrow-line::after {
+    content: '';
+    position: absolute;
+    bottom: -4px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 0;
+    height: 0;
+    border-left: 5px solid transparent;
+    border-right: 5px solid transparent;
+  }
+
+  .arrow-label {
+    font-size: 0.65rem;
+    color: #6B5744;
+    white-space: nowrap;
+    padding: 2px 8px;
+    border-radius: 4px;
+    background: #1A161288;
+  }
+
+  .arrow-down .arrow-line { background: #D4A84366; }
+  .arrow-down .arrow-line::after { border-top: 5px solid #D4A84366; }
+
+  .arrow-up .arrow-line { background: #5B8AB566; }
+  .arrow-up .arrow-line::after {
+    border-top: none;
+    border-bottom: 5px solid #5B8AB566;
+    top: -4px;
+    bottom: auto;
+  }
+
+  .arrow-bi .arrow-line {
+    background: linear-gradient(to bottom, #3D9B6A66, #D4A84366);
+  }
+  .arrow-bi .arrow-line::after { border-top: 5px solid #D4A84366; }
+
+  /* Detail panel */
+  .detail-panel {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: #2C1810;
+    border-top: 1px solid #D4A84333;
+    border-radius: 20px 20px 0 0;
+    padding: 24px;
+    transform: translateY(100%);
+    transition: transform 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+    z-index: 100;
+    max-height: 50vh;
+    overflow-y: auto;
+  }
+
+  .detail-panel.open {
+    transform: translateY(0);
+  }
+
+  .detail-handle {
+    width: 40px;
+    height: 4px;
+    background: #6B5744;
+    border-radius: 2px;
+    margin: 0 auto 16px;
+  }
+
+  .detail-panel h3 {
+    font-family: 'Playfair Display', serif;
+    font-size: 1.2rem;
+    color: #D4A843;
+    margin-bottom: 8px;
+  }
+
+  .detail-panel p {
+    font-size: 0.85rem;
+    line-height: 1.7;
+    color: #A89480;
+    margin-bottom: 12px;
+  }
+
+  .detail-tables {
+    font-size: 0.75rem;
+    color: #A89480;
+  }
+
+  .detail-tables .dt-row {
+    display: flex;
+    padding: 6px 0;
+    border-bottom: 1px solid #6B574422;
+  }
+
+  .detail-tables .dt-label {
+    width: 120px;
+    flex-shrink: 0;
+    color: #6B5744;
+    font-weight: 600;
+  }
+
+  .detail-tables .dt-value {
+    color: #FDF8F3;
+  }
+
+  /* Overlay */
+  .overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.5);
+    z-index: 99;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s;
+  }
+
+  .overlay.open {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  /* Feedback loop banner */
+  .feedback-loop {
+    max-width: 1100px;
+    margin: 0 auto 40px;
+    padding: 0 20px;
+  }
+
+  .feedback-card {
+    background: linear-gradient(135deg, #2A1A2E, #1A2030);
+    border: 1px dashed #9B6AAA44;
+    border-radius: 16px;
+    padding: 20px 24px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .feedback-icon {
+    font-size: 2rem;
+    flex-shrink: 0;
+  }
+
+  .feedback-text h4 {
+    font-family: 'Playfair Display', serif;
+    color: #C49BD4;
+    margin-bottom: 4px;
+  }
+
+  .feedback-text p {
+    font-size: 0.8rem;
+    color: #A89480;
+    line-height: 1.5;
+  }
+
+  /* Responsive */
+  @media (max-width: 768px) {
+    .node { min-width: 100%; max-width: 100%; }
+    .lane-content { flex-direction: column; }
+    .header h1 { font-size: 1.5rem; }
+    .feedback-card { flex-direction: column; text-align: center; }
+  }
+
+  /* Entrance animations */
+  .lane { opacity: 0; transform: translateY(20px); animation: fadeUp 0.5s forwards; }
+  .lane:nth-child(1) { animation-delay: 0.1s; }
+  .lane:nth-child(2) { animation-delay: 0.2s; }
+  .lane:nth-child(3) { animation-delay: 0.3s; }
+  .lane:nth-child(4) { animation-delay: 0.4s; }
+  .lane:nth-child(5) { animation-delay: 0.5s; }
+  .lane:nth-child(6) { animation-delay: 0.6s; }
+  .lane:nth-child(7) { animation-delay: 0.7s; }
+  .lane:nth-child(8) { animation-delay: 0.8s; }
+  .lane:nth-child(9) { animation-delay: 0.9s; }
+
+  .arrow-section { opacity: 0; animation: fadeUp 0.4s forwards; }
+
+  @keyframes fadeUp {
+    to { opacity: 1; transform: translateY(0); }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>KanaimoWiki — Flujo de Datos</h1>
+  <p>Movimiento de datos desde las fuentes originales hasta el usuario final, incluyendo el ciclo comunitario y la asistencia de IA.</p>
+</div>
+
+<div class="legend">
+  <div class="legend-item"><div class="legend-dot" style="background:#B8522E"></div> Fuente</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#2A6B4A"></div> Proceso</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#D4A843"></div> Almacenamiento</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#5B8AB5"></div> Producto/Salida</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#9B6AAA"></div> IA</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#4A9BAA"></div> Comunidad</div>
+</div>
+
+<div class="canvas">
+
+  <!-- LANE 1: Sources -->
+  <div class="lane" style="animation-delay:0.1s">
+    <div class="lane-label">1 &mdash; Fuentes originales</div>
+    <div class="lane-content">
+      <div class="node node-source" onclick="showDetail('book')">
+        <div class="node-icon">📖</div>
+        <div class="node-title">Diccionario fisico</div>
+        <div class="node-desc">Libro del profesor Roger. Escuela de Canaima, Gran Sabana. Cientos de palabras pemon kamarakoto con traducciones al espanol.</div>
+        <span class="node-tag">Fuente primaria</span>
+      </div>
+      <div class="node node-source" onclick="showDetail('oral')">
+        <div class="node-icon">🗣️</div>
+        <div class="node-title">Tradicion oral</div>
+        <div class="node-desc">Hablantes nativos kamarakoto. Pronunciacion, frases de uso cotidiano, variantes dialectales, contexto cultural.</div>
+        <span class="node-tag">Fuente viva</span>
+      </div>
+      <div class="node node-community" onclick="showDetail('community')">
+        <div class="node-icon">👥</div>
+        <div class="node-title">Comunidad pemon</div>
+        <div class="node-desc">Cualquier hablante puede proponer palabras nuevas, grabar pronunciaciones, sugerir correcciones.</div>
+        <span class="node-tag">Crowdsource</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Arrow -->
+  <div class="arrow-section" style="animation-delay:0.15s">
+    <div class="arrow-group">
+      <div class="arrow arrow-down"><div class="arrow-line"></div><span class="arrow-label">Escaneo + OCR</span></div>
+      <div class="arrow arrow-down"><div class="arrow-line"></div><span class="arrow-label">Grabacion de audio</span></div>
+      <div class="arrow arrow-down"><div class="arrow-line"></div><span class="arrow-label">Formulario in-app</span></div>
+    </div>
+  </div>
+
+  <!-- LANE 2: Ingestion -->
+  <div class="lane" style="animation-delay:0.2s">
+    <div class="lane-label">2 &mdash; Ingestion y digitalizacion</div>
+    <div class="lane-content">
+      <div class="node node-process" onclick="showDetail('ocr')">
+        <div class="node-icon">📷</div>
+        <div class="node-title">OCR + Extraccion</div>
+        <div class="node-desc">Gemini Vision escanea paginas del diccionario. Extrae pares pemon-espanol, categorias, notas. Correccion manual para ortografia pemon.</div>
+        <span class="node-tag">Semi-automatico</span>
+      </div>
+      <div class="node node-process" onclick="showDetail('audio_rec')">
+        <div class="node-icon">🎙️</div>
+        <div class="node-title">Grabacion de audio</div>
+        <div class="node-desc">Sesiones con Roger y hablantes nativos. Web Audio API para grabaciones comunitarias. Formato WebM, ~3s por palabra.</div>
+        <span class="node-tag">Nativo + comunidad</span>
+      </div>
+      <div class="node node-process" onclick="showDetail('proposal')">
+        <div class="node-icon">✍️</div>
+        <div class="node-title">Propuestas comunitarias</div>
+        <div class="node-desc">Formulario sin autenticacion. Palabra pemon + traduccion + categoria + nota + audio opcional. Entra como propuesta pendiente.</div>
+        <span class="node-tag">Sin friccion</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Arrow -->
+  <div class="arrow-section" style="animation-delay:0.25s">
+    <div class="arrow-group">
+      <div class="arrow arrow-down"><div class="arrow-line"></div><span class="arrow-label">Entradas crudas</span></div>
+      <div class="arrow arrow-down"><div class="arrow-line"></div><span class="arrow-label">Archivos .webm</span></div>
+      <div class="arrow arrow-down"><div class="arrow-line"></div><span class="arrow-label">INSERT proposals</span></div>
+    </div>
+  </div>
+
+  <!-- LANE 3: Review -->
+  <div class="lane" style="animation-delay:0.3s">
+    <div class="lane-label">3 &mdash; Revision y validacion</div>
+    <div class="lane-content">
+      <div class="node node-process" onclick="showDetail('review')">
+        <div class="node-icon">✅</div>
+        <div class="node-title">Comite de revision</div>
+        <div class="node-desc">Profesor Roger + lideres comunitarios kamarakoto. Validan pronunciacion, significado, contexto cultural. Pueden corregir, aprobar o rechazar.</div>
+        <span class="node-tag">Humano siempre</span>
+      </div>
+      <div class="node node-ai" onclick="showDetail('ai_assist')">
+        <div class="node-icon">🤖</div>
+        <div class="node-title">Asistencia IA</div>
+        <div class="node-desc">Gemini sugiere: IPA aproximado, categorias probables, duplicados potenciales, patron gramatical detectado. Nunca publica — solo asiste al revisor.</div>
+        <span class="node-tag">Asistente, no decisor</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Arrow -->
+  <div class="arrow-section" style="animation-delay:0.35s">
+    <div class="arrow-group">
+      <div class="arrow arrow-down"><div class="arrow-line"></div><span class="arrow-label">Confirmada</span></div>
+      <div class="arrow arrow-down"><div class="arrow-line"></div><span class="arrow-label">Pendiente (con notas)</span></div>
+      <div class="arrow arrow-down"><div class="arrow-line"></div><span class="arrow-label">Audio validado</span></div>
+    </div>
+  </div>
+
+  <!-- LANE 4: Storage -->
+  <div class="lane" style="animation-delay:0.4s">
+    <div class="lane-label">4 &mdash; Almacenamiento</div>
+    <div class="lane-content">
+      <div class="node node-storage" onclick="showDetail('db')">
+        <div class="node-icon">🗄️</div>
+        <div class="node-title">Base de datos (PostgreSQL)</div>
+        <div class="node-desc">Tablas: words, phrases, phrase_parts, categories, proposals, user_progress. RLS publico para lectura, admin para escritura.</div>
+        <span class="node-tag">Supabase</span>
+      </div>
+      <div class="node node-storage" onclick="showDetail('storage')">
+        <div class="node-icon">🔊</div>
+        <div class="node-title">Storage de audio</div>
+        <div class="node-desc">Bucket pronunciation/ (confirmados) y community-audio/ (pre-revision). WebM, ~50KB por palabra. Descarga offline opcional.</div>
+        <span class="node-tag">Supabase Storage</span>
+      </div>
+      <div class="node node-storage" onclick="showDetail('cache')">
+        <div class="node-icon">📱</div>
+        <div class="node-title">Cache local (offline)</div>
+        <div class="node-desc">IndexedDB: diccionario completo (&lt;5MB). localStorage: progreso, historial, preferencias. Service Worker: shell + assets.</div>
+        <span class="node-tag">Offline-first</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Arrow -->
+  <div class="arrow-section" style="animation-delay:0.45s">
+    <div class="arrow-group">
+      <div class="arrow arrow-down"><div class="arrow-line"></div><span class="arrow-label">API queries</span></div>
+      <div class="arrow arrow-down"><div class="arrow-line"></div><span class="arrow-label">Audio streaming</span></div>
+      <div class="arrow arrow-down"><div class="arrow-line"></div><span class="arrow-label">Cache hit</span></div>
+    </div>
+  </div>
+
+  <!-- LANE 5: AI Processing -->
+  <div class="lane" style="animation-delay:0.5s">
+    <div class="lane-label">5 &mdash; Procesamiento IA</div>
+    <div class="lane-content">
+      <div class="node node-ai" onclick="showDetail('translate_ai')">
+        <div class="node-icon">🔄</div>
+        <div class="node-title">Traduccion asistida</div>
+        <div class="node-desc">Cuando una palabra no esta en el diccionario: fuzzy match primero, luego Gemini con el corpus como few-shot. Resultado marcado como "IA, no confirmado".</div>
+        <span class="node-tag">Edge function</span>
+      </div>
+      <div class="node node-ai" onclick="showDetail('patterns')">
+        <div class="node-icon">🧩</div>
+        <div class="node-title">Deteccion de patrones</div>
+        <div class="node-desc">Batch job: analiza corpus confirmado para inferir reglas gramaticales, raices compartidas, gaps por categoria. Resultados para admin, nunca publicos directamente.</div>
+        <span class="node-tag">Batch semanal</span>
+      </div>
+      <div class="node node-ai" onclick="showDetail('learning')">
+        <div class="node-icon">🧠</div>
+        <div class="node-title">Motor de aprendizaje</div>
+        <div class="node-desc">Spaced repetition adaptativo. Orden de palabras por dificultad fonetica + progreso del usuario. Sugiere proxima palabra a aprender.</div>
+        <span class="node-tag">Client-side + edge</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Arrow -->
+  <div class="arrow-section" style="animation-delay:0.55s">
+    <div class="arrow-group">
+      <div class="arrow arrow-down"><div class="arrow-line"></div><span class="arrow-label">Resultados enriquecidos</span></div>
+      <div class="arrow arrow-down"><div class="arrow-line"></div><span class="arrow-label">Ruta personalizada</span></div>
+    </div>
+  </div>
+
+  <!-- LANE 6: App Outputs -->
+  <div class="lane" style="animation-delay:0.6s">
+    <div class="lane-label">6 &mdash; Interfaz de usuario (app)</div>
+    <div class="lane-content">
+      <div class="node node-output" onclick="showDetail('dict_ui')">
+        <div class="node-icon">📚</div>
+        <div class="node-title">Diccionario</div>
+        <div class="node-desc">Busqueda, filtro por categoria/estado, detalle por palabra con audio, notas, frases de ejemplo. Status: confirmada/pendiente/comunidad.</div>
+        <span class="node-tag">Screen</span>
+      </div>
+      <div class="node node-output" onclick="showDetail('translate_ui')">
+        <div class="node-icon">🔀</div>
+        <div class="node-title">Traductor</div>
+        <div class="node-desc">Bidireccional espanol↔pemon. Resultado de BD o fallback IA (marcado). Historial de traducciones. Chips de palabras sugeridas.</div>
+        <span class="node-tag">Screen</span>
+      </div>
+      <div class="node node-output" onclick="showDetail('phrases_ui')">
+        <div class="node-icon">💬</div>
+        <div class="node-title">Constructor de frases</div>
+        <div class="node-desc">Seleccion paso a paso: accion + lugar/objeto. Muestra frase en ambos idiomas solo si todas las piezas estan disponibles. Audio de frase completa.</div>
+        <span class="node-tag">Screen</span>
+      </div>
+      <div class="node node-output" onclick="showDetail('home_ui')">
+        <div class="node-icon">🏠</div>
+        <div class="node-title">Inicio</div>
+        <div class="node-desc">Palabra del dia, progreso personal (palabras aprendidas, racha, frases), categorias, palabras recientes. Punto de entrada diario.</div>
+        <span class="node-tag">Screen</span>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Feedback loop -->
+<div class="feedback-loop">
+  <div class="feedback-card">
+    <div class="feedback-icon">🔁</div>
+    <div class="feedback-text">
+      <h4>Ciclo de retroalimentacion</h4>
+      <p>El uso de la app genera señales: palabras mas buscadas sin resultado → prioridad de digitalizacion. Palabras marcadas como aprendidas → metricas de impacto. Propuestas comunitarias → crecimiento organico del corpus. Busquedas fallidas → gaps para IA. Todo vuelve a alimentar la revision y la expansion del diccionario.</p>
+    </div>
+  </div>
+</div>
+
+<!-- Detail panel -->
+<div class="overlay" id="overlay" onclick="hideDetail()"></div>
+<div class="detail-panel" id="detailPanel">
+  <div class="detail-handle"></div>
+  <h3 id="detailTitle"></h3>
+  <p id="detailDesc"></p>
+  <div class="detail-tables" id="detailTable"></div>
+</div>
+
+<script>
+const details = {
+  book: {
+    title: '📖 Diccionario fisico — Prof. Roger',
+    desc: 'El diccionario fisico es la piedra angular del proyecto. Contiene cientos de entradas pemon kamarakoto recopiladas por el profesor Roger durante anos de trabajo con la comunidad en Canaima. Cada pagina se escanea, se procesa con OCR (Gemini Vision), y se corrige manualmente para respetar la ortografia pemon.',
+    table: [
+      ['Formato', 'Libro fisico, escrito a mano / impreso'],
+      ['Ubicacion', 'Escuela de Canaima, Gran Sabana'],
+      ['Contenido', 'Pares pemon-espanol + notas contextuales'],
+      ['Digitalizacion', 'Escaneo → Gemini Vision OCR → correccion manual'],
+      ['Estado inicial', 'Todas las entradas entran como "pendiente"'],
+      ['Validacion', 'Sesion presencial con Roger para confirmar']
+    ]
+  },
+  oral: {
+    title: '🗣️ Tradicion oral',
+    desc: 'Los hablantes nativos kamarakoto son la fuente viva del idioma. La pronunciacion, las variantes dialectales, y el contexto cultural no estan en el libro — vienen de conversaciones y sesiones de grabacion con la comunidad.',
+    table: [
+      ['Formato', 'Audio grabado (sesiones presenciales + app)'],
+      ['Hablantes', 'Prof. Roger + ancianos + comunidad general'],
+      ['Captura', 'Web Audio API in-app o grabadora externa'],
+      ['Formato audio', 'WebM, ~3 segundos por palabra'],
+      ['Almacenamiento', 'Supabase Storage bucket pronunciation/'],
+      ['Validacion', 'Revisor confirma calidad y precision']
+    ]
+  },
+  community: {
+    title: '👥 Comunidad pemon',
+    desc: 'Cualquier hablante pemon puede contribuir. El formulario de propuesta no requiere autenticacion para minimizar friccion. Cada propuesta pasa por el comite de revision antes de publicarse.',
+    table: [
+      ['Acceso', 'Publico, sin registro requerido'],
+      ['Datos', 'Palabra + traduccion + categoria + nota + audio'],
+      ['Flujo', 'Propuesta → cola de revision → aprobada/rechazada'],
+      ['Feedback', 'Nota del revisor explica rechazos'],
+      ['Tabla BD', 'proposals (separada de words hasta aprobacion)'],
+      ['Motivacion', 'Preservar su idioma, ver su aporte en la app']
+    ]
+  },
+  ocr: {
+    title: '📷 OCR + Extraccion',
+    desc: 'El proceso de digitalizacion combina automatizacion con revision humana. Gemini Vision extrae texto de las paginas escaneadas, pero la ortografia pemon (diacriticos, glotales, vocales especiales) requiere correccion manual por alguien que conozca el idioma.',
+    table: [
+      ['Herramienta', 'Gemini Vision (multimodal)'],
+      ['Input', 'Fotos de alta resolucion de cada pagina'],
+      ['Output', 'JSON: {pemon, spanish, category, note}'],
+      ['Precision estimada', '~85% OCR, ~95% post-correccion'],
+      ['Correccion', 'Manual por Joseph + validacion de Roger'],
+      ['Volumen', 'Estimado: 500-1000 entradas del libro']
+    ]
+  },
+  audio_rec: {
+    title: '🎙️ Grabacion de audio',
+    desc: 'Dos vias de grabacion: sesiones presenciales con hablantes nativos (mayor calidad) y grabaciones in-app por la comunidad (mayor volumen). Ambas pasan por validacion.',
+    table: [
+      ['Formato', 'WebM (Opus codec), mono, 48kHz'],
+      ['Duracion', '~2-5 segundos por palabra'],
+      ['Peso', '~30-80KB por archivo'],
+      ['Presencial', 'Microfono externo + ambiente controlado'],
+      ['In-app', 'Web Audio API, MediaRecorder'],
+      ['Total estimado', '~50MB para 2000 palabras con audio']
+    ]
+  },
+  proposal: {
+    title: '✍️ Propuestas comunitarias',
+    desc: 'El formulario de propuesta es el mecanismo de crecimiento organico. Disenado para minima friccion: sin registro, campos claros, grabacion de audio integrada.',
+    table: [
+      ['Campos', 'Palabra pemon, traduccion, categoria, nota, audio'],
+      ['Opcionales', 'Nombre del contribuyente, contacto'],
+      ['Autenticacion', 'Ninguna (por diseno)'],
+      ['Anti-spam', 'Rate limiting + review manual'],
+      ['Tabla', 'proposals (no words — hasta aprobacion)'],
+      ['Notificacion', 'Admin recibe alerta de nueva propuesta']
+    ]
+  },
+  review: {
+    title: '✅ Comite de revision',
+    desc: 'Ningun dato se publica sin revision humana. El profesor Roger es el validador principal, acompanado de lideres comunitarios kamarakoto que aportan perspectiva dialectal y cultural.',
+    table: [
+      ['Revisores', 'Prof. Roger (principal) + 2-3 lideres'],
+      ['Panel', 'Admin web con cola de revision'],
+      ['Acciones', 'Aprobar, rechazar, corregir, pedir audio'],
+      ['Resultado', 'Aprobada → words (confirmed) / Rechazada → nota'],
+      ['Frecuencia', 'Semanal o por demanda'],
+      ['Principio', 'Precision > velocidad. Mejor lento que incorrecto.']
+    ]
+  },
+  ai_assist: {
+    title: '🤖 Asistencia IA en revision',
+    desc: 'La IA asiste al revisor pero nunca decide. Genera sugerencias de IPA, detecta duplicados, sugiere categorias. El revisor humano tiene la ultima palabra siempre.',
+    table: [
+      ['Funcion', 'Asistente del revisor, no publicador'],
+      ['IPA', 'Transcripcion fonetica aproximada por Gemini'],
+      ['Duplicados', 'Fuzzy match contra corpus existente (pg_trgm)'],
+      ['Categorias', 'Sugerencia basada en semantica'],
+      ['Patrones', 'Detecta raices, sufijos, reglas gramaticales'],
+      ['Limite', 'NUNCA publica directamente. Solo sugiere.']
+    ]
+  },
+  db: {
+    title: '🗄️ Base de datos — PostgreSQL (Supabase)',
+    desc: 'Modelo relacional con 6 tablas core. RLS permite lectura publica del diccionario confirmado pero restringe escritura a admins/revisores.',
+    table: [
+      ['words', 'Diccionario: pemon, spanish, ipa, status, audio_url'],
+      ['phrases', 'Frases: pemon, spanish, componentes, audio'],
+      ['phrase_parts', 'Bloques: accion, lugar, objeto (para constructor)'],
+      ['categories', 'Naturaleza, Familia, Comida, Lugares, etc.'],
+      ['proposals', 'Cola de propuestas comunitarias'],
+      ['user_progress', 'Progreso por dispositivo (sin auth)']
+    ]
+  },
+  storage: {
+    title: '🔊 Storage de audio — Supabase',
+    desc: 'Dos buckets separados: audio confirmado (public read) y audio comunitario pre-revision (restricted). La separacion evita exponer audio no validado.',
+    table: [
+      ['Bucket confirmado', 'pronunciation/{word_id}.webm — public read'],
+      ['Bucket comunidad', 'community-audio/{proposal_id}.webm — restricted'],
+      ['Formato', 'WebM (Opus), mono, 48kHz'],
+      ['CDN', 'Supabase CDN con cache headers'],
+      ['Offline', 'Descarga batch opcional (~50MB para todo)'],
+      ['Backup', 'Supabase automatic + export mensual']
+    ]
+  },
+  cache: {
+    title: '📱 Cache local — Offline-first',
+    desc: 'Critico para la Gran Sabana donde la conectividad es limitada. El diccionario completo cabe en IndexedDB. El progreso se guarda localmente y sincroniza cuando hay conexion.',
+    table: [
+      ['IndexedDB', 'Diccionario completo (<5MB para 5000 palabras)'],
+      ['localStorage', 'Progreso, preferencias, historial traducciones'],
+      ['Service Worker', 'Shell + assets en cache (Workbox)'],
+      ['Sync', 'Background sync cuando hay conexion'],
+      ['Audio offline', 'Opcion de pre-descargar todos los audios'],
+      ['Fallback', 'App 100% funcional sin internet (excepto IA)']
+    ]
+  },
+  translate_ai: {
+    title: '🔄 Traduccion asistida por IA',
+    desc: 'Cuando el usuario busca una palabra que no esta en el diccionario, el sistema primero intenta fuzzy match. Si no hay resultado, consulta a Gemini usando el corpus confirmado como few-shot examples. El resultado SIEMPRE se marca como "sugerencia IA, no verificada".',
+    table: [
+      ['Edge function', 'translate-pemon'],
+      ['Paso 1', 'Fuzzy match via pg_trgm (similarity > 0.3)'],
+      ['Paso 2', 'Gemini con corpus como few-shot context'],
+      ['Output', 'Traduccion sugerida + confianza (baja/media)'],
+      ['UI', 'Badge "⚠ Sugerencia IA" + CTA proponer'],
+      ['Log', 'Busqueda fallida → señal de demanda']
+    ]
+  },
+  patterns: {
+    title: '🧩 Deteccion de patrones gramaticales',
+    desc: 'A medida que el corpus crece, Gemini analiza las entradas confirmadas para inferir reglas gramaticales del pemon kamarakoto: orden de palabras, sufijos, prefijos, conjugaciones. Estos insights son para los revisores y linguistas, nunca se publican automaticamente.',
+    table: [
+      ['Edge function', 'detect-patterns'],
+      ['Frecuencia', 'Batch semanal (o manual)'],
+      ['Output', 'Tabla ai_insights: pattern, examples, confidence'],
+      ['Tipos', 'Raices compartidas, sufijos, orden SOV/SVO'],
+      ['Uso', 'Admin review → enriquece notas de palabras'],
+      ['Ejemplo', '"El sufijo -dä parece indicar plural en 8 entradas"']
+    ]
+  },
+  learning: {
+    title: '🧠 Motor de aprendizaje adaptativo',
+    desc: 'Combina spaced repetition con orden personalizado. Las palabras se presentan segun dificultad fonetica (cuanto difiere del espanol), frecuencia de uso, y el progreso del usuario.',
+    table: [
+      ['Algoritmo', 'SM-2 simplificado (spaced repetition)'],
+      ['Dificultad', 'Distancia fonetica pemon-espanol'],
+      ['Orden', 'Categorias de facil a dificil (cognados primero)'],
+      ['Progreso', 'words_seen → words_practiced → words_learned'],
+      ['Racha', 'Dias consecutivos con al menos 1 interaccion'],
+      ['Ejecucion', 'Client-side (no depende de red)']
+    ]
+  },
+  dict_ui: {
+    title: '📚 Pantalla: Diccionario',
+    desc: 'La pantalla principal de exploracion. Busqueda instantanea, filtro por estado y categoria, tap en palabra para ver detalle en bottom sheet.',
+    table: [
+      ['Ruta', '/diccionario'],
+      ['Busqueda', 'Filtro instantaneo, debounce 200ms'],
+      ['Filtros', 'Todas, Confirmadas, Pendientes, Mis aportes'],
+      ['Categorias', 'Secciones colapsables con conteo'],
+      ['Detalle', 'Bottom sheet: IPA, audio, nota, frases, relacionadas'],
+      ['CTA', 'Boton "Proponer palabra" al final']
+    ]
+  },
+  translate_ui: {
+    title: '🔀 Pantalla: Traductor',
+    desc: 'Traductor bidireccional con resultado instantaneo si la palabra existe. Fallback a IA marcado claramente. Historial de traducciones recientes.',
+    table: [
+      ['Ruta', '/traductor'],
+      ['Direcciones', 'Espanol → Pemon / Pemon → Espanol'],
+      ['Resultado', 'DB match → confirmado / IA → "sugerencia"'],
+      ['Quick chips', 'Palabras comunes para probar rapido'],
+      ['Historial', 'Ultimas 10 traducciones (localStorage)'],
+      ['Not found', 'CTA para proponer la palabra']
+    ]
+  },
+  phrases_ui: {
+    title: '💬 Pantalla: Constructor de frases',
+    desc: 'Ensenanza interactiva de estructura gramatical. El usuario arma oraciones paso a paso seleccionando componentes. Solo muestra traduccion pemon si todas las piezas estan disponibles.',
+    table: [
+      ['Ruta', '/frases'],
+      ['Pasos', '1. Accion, 2. Lugar/Objeto (extensible)'],
+      ['Resultado', 'Frase en espanol + pemon (si completa)'],
+      ['Parcial', 'Si falta una pieza: "Traduccion incompleta"'],
+      ['Audio', 'Reproduccion de frase completa si disponible'],
+      ['Guardadas', 'Lista de frases que el usuario ha construido']
+    ]
+  },
+  home_ui: {
+    title: '🏠 Pantalla: Inicio',
+    desc: 'Punto de entrada diario. Palabra del dia para engagement, progreso personal para motivacion, categorias para exploracion, recientes para continuidad.',
+    table: [
+      ['Ruta', '/'],
+      ['Palabra del dia', 'Aleatoria de confirmadas, con frase ejemplo'],
+      ['Progreso', 'Palabras aprendidas, racha, frases construidas'],
+      ['Categorias', 'Grid 2 columnas con emoji + conteo'],
+      ['Recientes', 'Ultimas 5 palabras vistas'],
+      ['Saludo', 'Contextual por hora: Buenos dias/tardes/noches']
+    ]
+  }
+};
+
+function showDetail(key) {
+  const d = details[key];
+  if (!d) return;
+
+  document.getElementById('detailTitle').textContent = d.title;
+  document.getElementById('detailDesc').textContent = d.desc;
+
+  let tableHtml = '';
+  if (d.table) {
+    d.table.forEach(row => {
+      tableHtml += `<div class="dt-row"><span class="dt-label">${row[0]}</span><span class="dt-value">${row[1]}</span></div>`;
+    });
+  }
+  document.getElementById('detailTable').innerHTML = tableHtml;
+
+  document.getElementById('detailPanel').classList.add('open');
+  document.getElementById('overlay').classList.add('open');
+
+  // Highlight active node
+  document.querySelectorAll('.node').forEach(n => n.classList.remove('active'));
+  event.currentTarget.classList.add('active');
+}
+
+function hideDetail() {
+  document.getElementById('detailPanel').classList.remove('open');
+  document.getElementById('overlay').classList.remove('open');
+  document.querySelectorAll('.node').forEach(n => n.classList.remove('active'));
+}
+
+// Close on Escape
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') hideDetail();
+});
+</script>
+
+</body>
+</html>

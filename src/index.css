@@ -1,0 +1,105 @@
+@import "tailwindcss";
+
+/* ── Tepuy Design System ── */
+
+@theme {
+  /* Tanino — dark lagoon water of Canaima */
+  --color-tanino: #3B170B;
+  --color-tanino-light: #5C2A17;
+
+  /* Roca — tepuy rock walls */
+  --color-roca: #E0A58C;
+  --color-roca-dark: #C97F66;
+
+  /* Sabana — green, confirmed/accepted state */
+  --color-sabana: #2F4B35;
+
+  /* Oro — accent, primary action, selection */
+  --color-oro: #F2B544;
+
+  /* Neblina — text and input fields */
+  --color-neblina: #F5EEE6;
+  --color-neblina-soft: #E7D3C7;
+
+  /* Status */
+  --color-confirmada: #2F4B35;
+  --color-propuesta: #F2B544;
+  --color-pendiente: #C97F66;
+
+  /* Typography */
+  --font-display: "Big Shoulders Display", system-ui, sans-serif;
+  --font-body: "Atkinson Hyperlegible", system-ui, sans-serif;
+}
+
+/* ── Base styles ── */
+
+body {
+  font-family: var(--font-body);
+  background-color: var(--color-tanino);
+  color: var(--color-neblina);
+  margin: 0;
+  min-height: 100dvh;
+  -webkit-font-smoothing: antialiased;
+}
+
+#root {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── Font faces (local files, no Google dependency) ── */
+
+@font-face {
+  font-family: "Big Shoulders Display";
+  font-weight: 800;
+  font-display: swap;
+  src: url("/fonts/BigShouldersDisplay-ExtraBold.ttf") format("truetype");
+}
+
+@font-face {
+  font-family: "Atkinson Hyperlegible";
+  font-weight: 400;
+  font-display: swap;
+  src: url("/fonts/AtkinsonHyperlegible-Regular.ttf") format("truetype");
+}
+
+@font-face {
+  font-family: "Atkinson Hyperlegible";
+  font-weight: 700;
+  font-display: swap;
+  src: url("/fonts/AtkinsonHyperlegible-Bold.ttf") format("truetype");
+}
+
+/* ── Animations ── */
+
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes loader-slide {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(200%); }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.8s cubic-bezier(0.25, 0.46, 0.45, 0.94) both;
+}
+
+.animate-loader {
+  animation: loader-slide 1s cubic-bezier(0.42, 0, 0.58, 1) infinite;
+}
+
+/* ── Scrollbar ── */
+
+::-webkit-scrollbar {
+  width: 4px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-tanino-light);
+  border-radius: 2px;
+}
