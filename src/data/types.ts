@@ -39,3 +39,12 @@ export interface ParteFrase {
   es: string;
   palabra_id?: string;
 }
+
+export interface Historia {
+  id: string;
+  titulo: string;
+  resumen: string;
+  contenido: string;
+  fuente?: string;
+  icono: string;
+}

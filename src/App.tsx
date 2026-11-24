@@ -5,6 +5,7 @@ import { HomePage } from "./features/home/HomePage";
 import { DictionaryPage } from "./features/dictionary/DictionaryPage";
 import { TranslatePage } from "./features/translator/TranslatePage";
 import { PhrasesPage } from "./features/phrases/PhrasesPage";
+import { HistoriasPage } from "./features/historias/HistoriasPage";
 import { Splash } from "./features/onboarding/Splash";
 import { Onboarding } from "./features/onboarding/Onboarding";
 import { Registration } from "./features/onboarding/Registration";
@@ -67,6 +68,7 @@ export default function App() {
           <Route path="diccionario" element={<DictionaryPage />} />
           <Route path="traductor" element={<TranslatePage />} />
           <Route path="frases" element={<PhrasesPage />} />
+          <Route path="historias" element={<HistoriasPage />} />
         </Route>
       </Routes>
     </BrowserRouter>

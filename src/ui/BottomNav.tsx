@@ -1,11 +1,12 @@
 import { NavLink } from "react-router-dom";
-import { Home, BookOpen, Languages, MessageSquare } from "lucide-react";
+import { Home, BookOpen, Languages, MessageSquare, Scroll } from "lucide-react";
 
 const tabs = [
   { to: "/", icon: Home, label: "Inicio" },
   { to: "/diccionario", icon: BookOpen, label: "Palabras" },
   { to: "/traductor", icon: Languages, label: "Traducir" },
   { to: "/frases", icon: MessageSquare, label: "Frases" },
+  { to: "/historias", icon: Scroll, label: "Historias" },
 ] as const;
 
 export function BottomNav() {
@@ -25,8 +26,8 @@ export function BottomNav() {
           >
             {({ isActive }) => (
               <>
-                <span className={`flex items-center justify-center rounded-full px-4 py-1 ${isActive ? "bg-oro/15" : ""}`}>
-                  <Icon className="h-6 w-6" />
+                <span className={`flex items-center justify-center rounded-full px-3 py-1 ${isActive ? "bg-oro/15" : ""}`}>
+                  <Icon className="h-5 w-5" />
                 </span>
                 <span className="text-[11px] font-bold">{label}</span>
               </>
