@@ -154,6 +154,7 @@ export const palabras: Palabra[] = [
 ];
 
 export const frases: Frase[] = [
+  { id: "f-0", es: "Hola, buen día", pemon: "Waku wey", situacion: "saludos", estado_pemon: "propuesta" },
   { id: "f-1", es: "¿Cuál es tu nombre?", pemon: "Anük adesek?", situacion: "saludos", estado_pemon: "propuesta" },
   { id: "f-2", es: "Mi nombre es...", pemon: "Yesek mörö...", situacion: "saludos", estado_pemon: "propuesta" },
   { id: "f-3", es: "¿Cómo estás?", pemon: "Öktukay medan?", situacion: "saludos", estado_pemon: "propuesta" },
