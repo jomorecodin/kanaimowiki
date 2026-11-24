@@ -1,5 +1,5 @@
-import { useState, useMemo, useCallback } from "react";
-import { ArrowDownUp, BookOpen, MessageSquare, Sparkles, Loader2 } from "lucide-react";
+import { useState, useMemo, useCallback, useEffect, useRef } from "react";
+import { ArrowDownUp, BookOpen, MessageSquare, Sparkles, Loader2, Search } from "lucide-react";
 import { palabras, frases } from "../../data/mockData";
 import { normalize } from "../../data/search";
 import { translateWithAI } from "../../data/aiTranslate";
@@ -9,7 +9,7 @@ import type { Estado } from "../../data/types";
 type Direction = "es-pemon" | "pemon-es";
 
 interface TranslateResult {
-  type: "palabra" | "frase" | "ai";
+  type: "palabra" | "frase" | "ai" | "desglose";
   from: string;
   to: string;
   estado: Estado;
@@ -17,6 +17,14 @@ interface TranslateResult {
   confidence?: string;
   score: number;
 }
+
+interface WordBreakdown {
+  original: string;
+  translation: string | null;
+  found: boolean;
+}
+
+// --- Scoring ---
 
 function scoreMatch(text: string, query: string): number {
   const nt = normalize(text);
@@ -34,13 +42,55 @@ function scoreMatch(text: string, query: string): number {
   return 0;
 }
 
+// --- Spanish stop words to skip in decomposition ---
+
+const STOP_WORDS = new Set([
+  "a", "al", "el", "la", "los", "las", "un", "una", "unos", "unas",
+  "de", "del", "en", "con", "por", "para", "y", "o", "que", "se",
+  "me", "te", "nos", "les", "lo", "mi", "tu", "su",
+]);
+
+// --- Word-by-word decomposition ---
+
+function decomposeAndTranslate(query: string, direction: Direction): WordBreakdown[] {
+  const words = query.toLowerCase().split(/\s+/).filter(Boolean);
+  if (words.length <= 1) return [];
+
+  return words.map((word) => {
+    if (STOP_WORDS.has(word)) {
+      return { original: word, translation: null, found: false };
+    }
+
+    // Search in palabras
+    let bestMatch: { translation: string; score: number } | null = null;
+
+    for (const p of palabras) {
+      const fromField = direction === "es-pemon" ? p.es : p.pemon;
+      const toField = direction === "es-pemon" ? p.pemon : p.es;
+      const score = scoreMatch(fromField, word);
+      if (score >= 70 && (!bestMatch || score > bestMatch.score)) {
+        bestMatch = { translation: toField, score };
+      }
+    }
+
+    return {
+      original: word,
+      translation: bestMatch?.translation ?? null,
+      found: !!bestMatch,
+    };
+  });
+}
+
+// --- Main component ---
+
 export function TranslatePage() {
   const [direction, setDirection] = useState<Direction>("es-pemon");
   const [input, setInput] = useState("");
   const [aiResult, setAiResult] = useState<TranslateResult | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
-  const [lastAiQuery, setLastAiQuery] = useState("");
+  const aiAbortRef = useRef(0);
 
+  // Local dictionary matches
   const localResults = useMemo((): TranslateResult[] => {
     const q = input.trim();
     if (!q) return [];
@@ -66,17 +116,78 @@ export function TranslatePage() {
     }
 
     matches.sort((a, b) => b.score - a.score);
-    return matches.slice(0, 10);
+    return matches.slice(0, 8);
   }, [input, direction]);
 
-  const handleAiTranslate = useCallback(async () => {
+  // Word-by-word breakdown (for multi-word queries)
+  const breakdown = useMemo((): WordBreakdown[] => {
     const q = input.trim();
-    if (!q || aiLoading) return;
+    if (!q || q.split(/\s+/).length <= 1) return [];
+    return decomposeAndTranslate(q, direction);
+  }, [input, direction]);
+
+  const hasFoundWords = breakdown.some((b) => b.found);
+
+  // Auto-trigger AI translation with debounce
+  useEffect(() => {
+    const q = input.trim();
+    if (!q || q.length < 2) {
+      setAiResult(null);
+      return;
+    }
+
+    // Only auto-trigger if local results are weak
+    const hasStrongLocal = localResults.length > 0 && localResults[0].score >= 80;
+    if (hasStrongLocal) {
+      setAiResult(null);
+      return;
+    }
+
+    const id = ++aiAbortRef.current;
     setAiLoading(true);
     setAiResult(null);
-    setLastAiQuery(q + direction);
+
+    const timer = setTimeout(async () => {
+      try {
+        const result = await translateWithAI(q, direction);
+        if (id !== aiAbortRef.current) return; // stale
+        if (result && result.translation) {
+          setAiResult({
+            type: "ai",
+            from: q,
+            to: result.translation,
+            estado: "pendiente",
+            nota: result.note,
+            confidence: result.confidence,
+            score: 0,
+          });
+        }
+      } catch {
+        // silent fail
+      } finally {
+        if (id === aiAbortRef.current) {
+          setAiLoading(false);
+        }
+      }
+    }, 800);
+
+    return () => {
+      clearTimeout(timer);
+      if (id === aiAbortRef.current) {
+        setAiLoading(false);
+      }
+    };
+  }, [input, direction, localResults]);
+
+  const handleManualAi = useCallback(async () => {
+    const q = input.trim();
+    if (!q || aiLoading) return;
+    const id = ++aiAbortRef.current;
+    setAiLoading(true);
+    setAiResult(null);
     try {
       const result = await translateWithAI(q, direction);
+      if (id !== aiAbortRef.current) return;
       if (result && result.translation) {
         setAiResult({
           type: "ai",
@@ -89,21 +200,14 @@ export function TranslatePage() {
         });
       }
     } finally {
-      setAiLoading(false);
+      if (id === aiAbortRef.current) setAiLoading(false);
     }
   }, [input, direction, aiLoading]);
 
-  // Clear AI result when input or direction changes
-  const currentKey = input.trim() + direction;
-  if (lastAiQuery && lastAiQuery !== currentKey && aiResult) {
-    setAiResult(null);
-    setLastAiQuery("");
-  }
-
   const hasLocalResults = localResults.length > 0;
-  const showAiSection = input.trim().length > 0;
+  const hasInput = input.trim().length > 0;
 
-  const quickWords = ["hola", "agua", "gracias", "como estas", "madre", "casa", "tengo hambre", "jaguar"];
+  const quickWords = ["hola", "agua", "gracias", "como estas", "madre", "casa", "tengo hambre", "jaguar", "vamos al rio", "donde esta"];
 
   return (
     <div className="space-y-5">
@@ -114,27 +218,71 @@ export function TranslatePage() {
         className="flex w-full items-center justify-center gap-3 rounded-xl bg-tanino-light py-3 font-bold text-neblina transition-colors hover:bg-tanino-light/80"
       >
         <span className={direction === "es-pemon" ? "text-oro" : "text-neblina-soft"}>
-          Espanol
+          Español
         </span>
         <ArrowDownUp className="h-4 w-4 text-neblina-soft" />
         <span className={direction === "pemon-es" ? "text-oro" : "text-neblina-soft"}>
-          Pemon
+          Pemón
         </span>
       </button>
 
       {/* Input */}
-      <textarea
-        value={input}
-        onChange={(e) => setInput(e.target.value)}
-        placeholder={
-          direction === "es-pemon"
-            ? "Escribe en espanol..."
-            : "Escribe en pemon..."
-        }
-        maxLength={200}
-        rows={2}
-        className="w-full resize-none rounded-xl bg-tanino-light p-4 text-neblina placeholder:text-neblina-soft/40 outline-none focus:ring-2 focus:ring-oro/50"
-      />
+      <div className="relative">
+        <textarea
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          placeholder={
+            direction === "es-pemon"
+              ? "Escribe en español..."
+              : "Escribe en pemón..."
+          }
+          maxLength={200}
+          rows={2}
+          className="w-full resize-none rounded-xl bg-tanino-light p-4 pr-12 text-neblina placeholder:text-neblina-soft/40 outline-none focus:ring-2 focus:ring-oro/50"
+        />
+        {aiLoading && (
+          <div className="absolute right-4 top-4">
+            <Loader2 className="h-5 w-5 animate-spin text-oro/60" />
+          </div>
+        )}
+        {!aiLoading && hasInput && (
+          <div className="absolute right-4 top-4">
+            <Search className="h-5 w-5 text-neblina-soft/30" />
+          </div>
+        )}
+      </div>
+
+      {/* Word-by-word breakdown */}
+      {breakdown.length > 0 && hasFoundWords && (
+        <div className="space-y-2">
+          <p className="text-xs font-bold uppercase tracking-wider text-neblina-soft/40">
+            Palabra por palabra
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {breakdown.map((b, i) => (
+              <div
+                key={i}
+                className={`rounded-lg px-3 py-2 text-center ${
+                  b.found
+                    ? "bg-sabana/10 border border-sabana/20"
+                    : "bg-tanino-light/50"
+                }`}
+              >
+                <p className="text-xs text-neblina-soft/60">{b.original}</p>
+                {b.found && b.translation ? (
+                  <p className="font-display text-sm tracking-wide text-neblina">
+                    {b.translation}
+                  </p>
+                ) : (
+                  <p className="text-xs italic text-neblina-soft/30">
+                    {STOP_WORDS.has(b.original) ? "—" : "?"}
+                  </p>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Local results from dictionary */}
       {hasLocalResults && (
@@ -149,13 +297,12 @@ export function TranslatePage() {
       )}
 
       {/* AI translation section */}
-      {showAiSection && (
+      {hasInput && (
         <div className="space-y-3">
-          {!hasLocalResults && !aiResult && !aiLoading && (
-            <div className="rounded-2xl bg-tanino-light p-5 text-center">
-              <p className="text-sm text-neblina-soft">
-                No se encontró en el diccionario.
-              </p>
+          {aiLoading && !aiResult && (
+            <div className="flex items-center justify-center gap-2 rounded-2xl border border-oro/20 bg-tanino-light p-5">
+              <Loader2 className="h-4 w-4 animate-spin text-oro/60" />
+              <span className="text-sm text-oro/60">Consultando IA...</span>
             </div>
           )}
 
@@ -179,31 +326,30 @@ export function TranslatePage() {
                   <p className="mt-2 text-xs italic text-neblina-soft/50">{aiResult.nota}</p>
                 )}
                 <p className="mt-3 rounded-lg bg-oro/10 px-3 py-2 text-xs text-oro/80">
-                  Traduccion sugerida por IA. No ha sido revisada por hablantes nativos.
+                  Traducción sugerida por IA. No ha sido revisada por hablantes nativos.
                 </p>
               </div>
             </>
           )}
 
-          {!aiResult && (
+          {/* Manual retry button — only show if AI didn't auto-trigger or failed */}
+          {!aiResult && !aiLoading && (
             <button
               type="button"
-              onClick={handleAiTranslate}
-              disabled={aiLoading}
-              className="flex w-full items-center justify-center gap-2 rounded-xl border border-oro/30 py-3 text-sm font-bold text-oro transition-colors hover:bg-oro/10 disabled:opacity-50"
+              onClick={handleManualAi}
+              className="flex w-full items-center justify-center gap-2 rounded-xl border border-oro/30 py-3 text-sm font-bold text-oro transition-colors hover:bg-oro/10"
             >
-              {aiLoading ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Traduciendo...
-                </>
-              ) : (
-                <>
-                  <Sparkles className="h-4 w-4" />
-                  Traducir con IA
-                </>
-              )}
+              <Sparkles className="h-4 w-4" />
+              Traducir con IA
             </button>
+          )}
+
+          {!hasLocalResults && !aiResult && !aiLoading && (
+            <div className="rounded-2xl bg-tanino-light p-5 text-center">
+              <p className="text-sm text-neblina-soft">
+                No se encontró en el diccionario local.
+              </p>
+            </div>
           )}
         </div>
       )}
@@ -220,7 +366,6 @@ export function TranslatePage() {
                 setInput(w);
                 setDirection("es-pemon");
                 setAiResult(null);
-                setLastAiQuery("");
               }}
               className="rounded-full bg-tanino-light px-3 py-1.5 text-xs font-bold text-neblina-soft transition-colors hover:bg-oro/20 hover:text-oro"
             >
@@ -255,7 +400,6 @@ function ResultCard({ result }: { result: TranslateResult }) {
       )}
       <div className="mt-2 flex items-center gap-2">
         <StatusBadge estado={result.estado} />
-        <span className="text-xs text-neblina-soft/30">Audio pendiente</span>
       </div>
     </div>
   );

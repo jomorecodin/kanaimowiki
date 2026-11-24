@@ -29,3 +29,5 @@ ios/
 
 # Supabase local
 .supabase/
+
+.vercel
